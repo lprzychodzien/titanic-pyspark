@@ -1,0 +1,25 @@
+%pyspark
+import pyspark.sql.functions as f
+titanic = spark.read.csv('/data/titanic.csv',header=True,inferSchema=True)
+titanic.printSchema()
+print((titanic.count(), len(titanic.columns)))
+
+titanic = titanic.withColumnRenamed("home.dest","homedest")
+titanic = titanic.withColumnRenamed("row.names","rownames")
+
+for i in titanic.columns:
+    print(i,titanic.where(f.col(i).isNull()).count())
+    
+titanic.groupby('sex').sum().show()
+titanic.where(col("age")=='NA').count()
+
+titanic = titanic.withColumn("ageImputed",f.when(f.col("age")=='NA',1).otherwise(0))
+titanic = titanic.drop('room','ticket','boat')
+meanage = titanic.select(f.mean(f.col('age'))).collect()[0][0]
+titanic = titanic.withColumn('age',f.when(f.col('age')=='NA',meanage).otherwise(titanic['age']))
+
+titanic = titanic.withColumn('femalesex',f.when(f.col('sex')=='female',1).otherwise(0))
+titanic = titanic.drop('sex')
+
+titanic.select('pclass').distinct().show()
+titanic = titanic.withColumn('pclass',f.when(f.col('pclass')=='1st',1).when(f.col('pclass')=='2nd',2).otherwise(3))
