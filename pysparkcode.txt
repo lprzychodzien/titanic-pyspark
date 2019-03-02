@@ -1,8 +1,8 @@
 %pyspark
 import pyspark.sql.functions as f
 titanic = spark.read.csv('/data/titanic.csv',header=True,inferSchema=True)
-titanic.printSchema()
 print((titanic.count(), len(titanic.columns)))
+titanic.printSchema()
 
 titanic = titanic.withColumnRenamed("home.dest","homedest")
 titanic = titanic.withColumnRenamed("row.names","rownames")
@@ -23,3 +23,9 @@ titanic = titanic.drop('sex')
 
 titanic.select('pclass').distinct().show()
 titanic = titanic.withColumn('pclass',f.when(f.col('pclass')=='1st',1).when(f.col('pclass')=='2nd',2).otherwise(3))
+
+titanic = titanic.withColumn("embarkedImputed",f.when(f.col("embarked").isNull(),1).otherwise(0))
+titanic = titanic.withColumn("homedestImputed",f.when(f.col("homedest").isNull(),1).otherwise(0))
+
+titanic = titanic.withColumn('embarked',f.when(f.col('embarked').isNull(),'Southampton').otherwise(titanic['embarked']))
+titanic = titanic.withColumn('homedest',f.when(f.col('homedest').isNull(),'New York, NY').otherwise(titanic['homedest']))
