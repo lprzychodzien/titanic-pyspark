@@ -6,6 +6,7 @@ from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.tuning import ParamGridBuilder, TrainValidationSplit
 
+#titanic = spark.read.csv('s3a://lprzychodzien-first-bucket/titanic.csv',header=True,inferSchema=True)
 
 titanic = spark.read.csv('/data/titanic.csv',header=True,inferSchema=True)
 #print((titanic.count(), len(titanic.columns)))
