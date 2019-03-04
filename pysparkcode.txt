@@ -22,6 +22,9 @@ titanic = titanic.withColumnRenamed("row.names","rownames")
     
 titanic = titanic.drop('room','ticket','boat')
 
+#Sex
+titanic = StringIndexer(inputCol='sex',outputCol='sex_index').fit(titanic).transform(titanic)
+
 #Age
 titanic = titanic.withColumn("ageImputed",f.when(f.col("age").isNull(),1).otherwise(0))
 meanage = titanic.select(f.mean(f.col('age'))).collect()[0][0]
@@ -44,7 +47,7 @@ titanic = OneHotEncoder(inputCol="homedest_index", outputCol="homedestVec").tran
 titanic = StringIndexer(inputCol='pclass',outputCol='pclass_index').fit(titanic).transform(titanic)
 titanic = OneHotEncoder(inputCol="pclass_index", outputCol="pclassVec").transform(titanic)
 
-df_assembler = VectorAssembler(inputCols=['pclassVec','age','ageImputed','embarkedVec','homedestVec','embarkedImputed','homedestImputed','femalesex'], outputCol='features')
+df_assembler = VectorAssembler(inputCols=['pclassVec','age','ageImputed','embarkedVec','homedestVec','embarkedImputed','homedestImputed','sex_index'], outputCol='features')
 titanic = df_assembler.transform(titanic)
 #titanic.printSchema()
 
