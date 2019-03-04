@@ -2,7 +2,7 @@
 import pyspark.sql.functions as f
 from pyspark.sql.types import IntegerType
 from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler
-from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.classification import RandomForestClassifier,GBTClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.tuning import ParamGridBuilder, TrainValidationSplit
 
@@ -77,40 +77,27 @@ print('Accuracy: ', MulticlassClassificationEvaluator(labelCol='survived',metric
 print('Precision: ',MulticlassClassificationEvaluator(labelCol='survived',metricName='weightedPrecision').evaluate(model2_predictions))
 
 
-from pyspark.ml import Pipeline
-
-titanic = spark.read.csv('/data/titanic.csv',header=True,inferSchema=True)
-
-titanic = titanic.withColumnRenamed("home.dest","homedest")
-titanic = titanic.withColumnRenamed("row.names","rownames")
-titanic = titanic.withColumn("age", titanic["age"].cast(IntegerType())).collect()
-
-modcol = ['pclass','age','embarked','homedest','sex']
-print('prep done')
-
-imp = [titanic.withColumn(column+"Imputed",f.when(f.col(column).isNull(),1).otherwise(0)) for column in modcol]
-
-mnage = titanic.withColumn('age',f.when(f.col('age').isNull(),meanage).otherwise(titanic['age']))
-
-mostemb = titanic.withColumn('embarked',f.when(f.col('embarked').isNull(),'Southampton').otherwise(titanic['embarked']))
-mosthome = titanic.withColumn('homedest',f.when(f.col('homedest').isNull(),'New York, NY').otherwise(titanic['homedest']))
-
-idx = [StringIndexer(inputCol=column,outputCol=column+'_index') for column in modcol]
-
-enc = [OneHotEncoder(inputCol=column, outputCol= column+"Vec") for column in modcol]
-
-va = VectorAssembler(inputCols=['pclassVec','age','ageImputed','embarkedVec','homedestVec','embarkedImputed','homedestImputed','sexVec'], outputCol='features')
-
-rf =RandomForestClassifier(labelCol='survived',maxDepth = 5, maxBins = 32, numTrees = 20, impurity = 'gini', minInstancesPerNode = 1)
-
-
-pipeline = Pipeline(stages=[imp,mnage,mostemb,mosthome,idx,enc,va, rf]) 
-
+#Gradient Boosted Tree Classifier
+model_titanic = titanic.select(['features','survived'])
 train_df,test_df = model_titanic.randomSplit([0.75,0.25])
 
-pipModel = pipeline.fit(train_df) 
+gbt_classifier = GBTClassifier(labelCol="survived", maxIter=10).fit(train_df)
 
-pipPrediction = model.transform(test_df)
+gbt_predictions=gbt_classifier.transform(test_df)
+print('Accuracy: ', MulticlassClassificationEvaluator(labelCol='survived',metricName='accuracy').evaluate(gbt_predictions))
+print('Precision: ',MulticlassClassificationEvaluator(labelCol='survived',metricName='weightedPrecision').evaluate(gbt_predictions))
 
-print('Accuracy: ', MulticlassClassificationEvaluator(labelCol='survived',metricName='accuracy').evaluate(pipPrediction))
-print('Precision: ',MulticlassClassificationEvaluator(labelCol='survived',metricName='weightedPrecision').evaluate(pipPrediction))
+gbt_classifier2 = GBTClassifier(labelCol="survived")
+paramGrid = ParamGridBuilder()\
+    .addGrid(gbt_classifier2.maxDepth, [5, 10, 20]) \
+    .addGrid(gbt_classifier2.maxBins, [20, 32, 50]) \
+    .addGrid(gbt_classifier2.maxIter, [10, 20, 30]) \
+    .addGrid(gbt_classifier2.minInstancesPerNode, [1, 5, 10]) \
+    .build()
+    
+tvs = TrainValidationSplit(estimator=gbt_classifier2, estimatorParamMaps=paramGrid,evaluator=MulticlassClassificationEvaluator(labelCol='survived'),trainRatio=0.8)
+model2 = tvs.fit(train_df)
+model2_predictions= model2.transform(test_df)
+
+print('Accuracy: ', MulticlassClassificationEvaluator(labelCol='survived',metricName='accuracy').evaluate(model2_predictions))
+print('Precision: ',MulticlassClassificationEvaluator(labelCol='survived',metricName='weightedPrecision').evaluate(model2_predictions))
