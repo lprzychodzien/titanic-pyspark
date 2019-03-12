@@ -6,7 +6,7 @@ from pyspark.ml.classification import RandomForestClassifier,GBTClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.tuning import ParamGridBuilder, TrainValidationSplit
 
-#titanic = spark.read.csv('s3a://lprzychodzien-first-bucket/titanic.csv',header=True,inferSchema=True)
+#titanic = spark.read.csv('s3a://bucket-name/titanic.csv',header=True,inferSchema=True)
 
 titanic = spark.read.csv('/data/titanic.csv',header=True,inferSchema=True)
 #print((titanic.count(), len(titanic.columns)))
@@ -22,15 +22,18 @@ titanic = titanic.withColumnRenamed("row.names","rownames")
     
 titanic = titanic.drop('room','ticket','boat')
 
-#Sex
-titanic = StringIndexer(inputCol='sex',outputCol='sex_index').fit(titanic).transform(titanic)
 
 #Age
 titanic = titanic.withColumn("ageImputed",f.when(f.col("age").isNull(),1).otherwise(0))
 meanage = titanic.select(f.mean(f.col('age'))).collect()[0][0]
 titanic = titanic.withColumn('age',f.when(f.col('age').isNull(),meanage).otherwise(titanic['age']))
 
+
 #Embarked and Homedest
+
+#titanic.groupby('homedest').count().sort(f.col("count").desc()).show()
+#titanic.groupby('embarked').count().sort(f.col("count").desc()).show()
+
 titanic = titanic.withColumn("embarkedImputed",f.when(f.col("embarked").isNull(),1).otherwise(0))
 titanic = titanic.withColumn("homedestImputed",f.when(f.col("homedest").isNull(),1).otherwise(0))
 
@@ -43,20 +46,32 @@ titanic = StringIndexer(inputCol='homedest',outputCol='homedest_index').fit(tita
 titanic = OneHotEncoder(inputCol="embarked_index", outputCol="embarkedVec").transform(titanic)
 titanic = OneHotEncoder(inputCol="homedest_index", outputCol="homedestVec").transform(titanic)
 
+
 #Pclass
 titanic = StringIndexer(inputCol='pclass',outputCol='pclass_index').fit(titanic).transform(titanic)
 titanic = OneHotEncoder(inputCol="pclass_index", outputCol="pclassVec").transform(titanic)
 
+
+#Sex
+titanic = StringIndexer(inputCol='sex',outputCol='sex_index').fit(titanic).transform(titanic)
+
+
+#Vector Assembler
 df_assembler = VectorAssembler(inputCols=['pclassVec','age','ageImputed','embarkedVec','homedestVec','embarkedImputed','homedestImputed','sex_index'], outputCol='features')
 titanic = df_assembler.transform(titanic)
 #titanic.printSchema()
 
-#Random Forest
+
+#Data Prep
 model_titanic = titanic.select(['features','survived'])
 train_df,test_df = model_titanic.randomSplit([0.75,0.25])
+#test_df.groupby('survived').count().show()
 
+
+#Random Forest
 rf_classifier=RandomForestClassifier(labelCol='survived').fit(train_df)
 rf_predictions=rf_classifier.transform(test_df)
+
 print('Accuracy: ', MulticlassClassificationEvaluator(labelCol='survived',metricName='accuracy').evaluate(rf_predictions))
 print('Precision: ',MulticlassClassificationEvaluator(labelCol='survived',metricName='weightedPrecision').evaluate(rf_predictions))
 
@@ -75,6 +90,8 @@ model2_predictions= model2.transform(test_df)
 
 print('Accuracy: ', MulticlassClassificationEvaluator(labelCol='survived',metricName='accuracy').evaluate(model2_predictions))
 print('Precision: ',MulticlassClassificationEvaluator(labelCol='survived',metricName='weightedPrecision').evaluate(model2_predictions))
+
+#model2.getEstimator().extractParamMap()
 
 
 #Gradient Boosted Tree Classifier
@@ -101,3 +118,6 @@ model2_predictions= model2.transform(test_df)
 
 print('Accuracy: ', MulticlassClassificationEvaluator(labelCol='survived',metricName='accuracy').evaluate(model2_predictions))
 print('Precision: ',MulticlassClassificationEvaluator(labelCol='survived',metricName='weightedPrecision').evaluate(model2_predictions))
+
+
+#model2.getEstimator().extractParamMap()
